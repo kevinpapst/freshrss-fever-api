@@ -9,7 +9,7 @@ To use it, upload the ```fever.php``` file to the FreshRSS location `/p/api/feve
 There is a major drawback when using this plugin, which is the username and password combination that you have to use.
 
 ## Features
-Following Features are implemented:
+Following features are implemented:
 
 - fetching categories
 - fetching feeds
@@ -22,6 +22,7 @@ Support will follow soon:
 
 - setting read marker for item(s)
 - setting starred marker for item(s)
+- improve speed: currently there is some overhead while fetching entries, feeds and categories which can be eliminated
 
 ## About FreshRSS
 [FreshRSS](https://freshrss.org/) is a great self-hosted RSS Reader written in PHP, which is can also be found here at [GitHub](https://github.com/FreshRSS/FreshRSS).
@@ -34,7 +35,7 @@ More extensions can be found at [FreshRSS/Extensions](https://github.com/FreshRS
 
 ## Credits and license
 
-This plugin was higjly inspired by the [tinytinyrss-fever-plugin](https://github.com/dasmurphy/tinytinyrss-fever-plugin).
+This plugin was inspired by the [tinytinyrss-fever-plugin](https://github.com/dasmurphy/tinytinyrss-fever-plugin).
 Thanks to @dasmurphy for sharing it!
 
-The original plugin was released under 
+The original plugin was released under GNU GPL version 2. I have no clue what that means for this plugin ... 
