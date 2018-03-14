@@ -882,7 +882,7 @@ if ($handler->isXmlRequested()) {
 }
 
 if (!$handler->isAuthenticatedApiUser()) {
-	echo $handler->wrap(FeverAPI::STATUS_ERR, NULL);
+	echo $handler->wrap(FeverAPI::STATUS_ERR, []);
+} else {
+    echo $handler->wrap(FeverAPI::STATUS_OK, $handler->process());
 }
-
-echo $handler->wrap(FeverAPI::STATUS_OK, $handler->process());
