@@ -73,7 +73,10 @@ class FeverAPI_EntryDAO extends FreshRSS_EntryDAO
 	 */
 	public function getUnread()
 	{
-		$sql = 'SELECT * FROM `' . $this->prefix . 'entry` e WHERE is_read=0';
+        $sql = 'SELECT id, guid, title, author, '
+            . ($this->isCompressed() ? 'UNCOMPRESS(content_bin) AS content' : 'content')
+            . ', link, date, is_read, is_favorite, id_feed, tags '
+            . 'FROM `' . $this->prefix . 'entry` WHERE is_read=0';
 		$stm = $this->bd->prepare($sql);
 		$stm->execute();
 		$result = $stm->fetchAll(PDO::FETCH_ASSOC);
@@ -91,7 +94,10 @@ class FeverAPI_EntryDAO extends FreshRSS_EntryDAO
 	 */
 	public function getStarred()
 	{
-		$sql = 'SELECT * FROM `' . $this->prefix . 'entry` e WHERE is_favorite=1';
+        $sql = 'SELECT id, guid, title, author, '
+            . ($this->isCompressed() ? 'UNCOMPRESS(content_bin) AS content' : 'content')
+            . ', link, date, is_read, is_favorite, id_feed, tags '
+            . 'FROM `' . $this->prefix . 'entry` WHERE is_favorite=1';
 		$stm = $this->bd->prepare($sql);
 		$stm->execute();
 		$result = $stm->fetchAll(PDO::FETCH_ASSOC);
@@ -814,6 +820,7 @@ class FeverAPI
      */
     protected function setFeed($id, $cat, $before = 0)
     {
+        /*
         // if before is zero, set it to now so feeds all items are read from before this point in time
         if ($before == 0)
             $before = time();
@@ -850,15 +857,14 @@ class FeverAPI
             }
             ccache_update($id, $_SESSION["uid"], $cat);
         }
+        */
     }
 
-    // FIXME
     protected function setFeedAsRead($id, $before)
     {
         $this->setFeed($id, false, $before);
     }
 
-	// FIXME
     protected function setGroupAsRead($id, $before)
     {
         $this->setFeed($id, true, $before);
