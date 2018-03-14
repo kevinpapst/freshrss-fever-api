@@ -30,13 +30,14 @@ Following features are implemented:
 - fetching feeds
 - fetching RSS items (new, favorites, unread, by_id, by_feed, by_category, since)
 - fetching favicons
+- setting read marker for item(s)
+- setting starred marker for item(s)
 - **hot** is not supported as there is nothing in FreshRSS that is similar
 
 ## Roadmap
 Support will follow soon:
-
-- setting read marker for item(s)
-- setting starred marker for item(s)
+- setting read marker for feed
+- setting read marker for category
 - improve speed: currently there is some overhead while fetching entries, feeds and categories which can be eliminated
 
 ## About FreshRSS
