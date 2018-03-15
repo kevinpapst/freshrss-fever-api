@@ -20,6 +20,14 @@ You can also use online tools for calculating ypu API password hash if you don't
 
 In your favorite RSS reader you configure **fever.php** as endpoint, **kevin** as username and **freshrss** as password.  
 
+## Compatibility
+
+Tested with:
+
+- PHP 7.1
+- FreshRSS 1.8.1-dev
+- iOS apps: Fiery Feeds, Unread
+
 ## Features
 Following features are implemented:
 
@@ -32,10 +40,44 @@ Following features are implemented:
 - **hot** is not supported as there is nothing in FreshRSS that is similar
 
 ## Roadmap
+
 Support will follow soon:
+
 - setting read marker for feed
 - setting read marker for category
 - improve speed: currently there is some overhead while fetching entries, feeds and categories which can be eliminated
+
+## Testing and error search
+If this API doesn't work as expected in your RSS reader, please test it manually with a tool like [Postman](https://www.getpostman.com/). 
+Configure a POST request to the URL http://your-freshrss-url/api/fever.php?api which  should give you the result:
+```
+{
+    "api_version": 3,
+    "auth": 0
+}
+```
+Great, the base setup seems to work!
+
+Now lets try an authenticated call, so add a body to your POST request encoded as `form-data` and one key named `api_key` with the value `your-password-hash`, that should give you:
+```
+{
+    "api_version": 3,
+    "auth": 1,                               <= 1 means you were successfully authenticated
+    "last_refreshed_on_time": "1520013061"   <= depends on your installation
+}
+```
+Perfect, you are authenticated and can now start testing the more advanced features. Therefor change the URL and append the possible API actions to your request parameters. Check the [original Fever documentation](https://feedafever.com/api) for more infos. 
+
+Some basic calls are:
+
+- http://your-freshrss-url/api/fever.php?api&items
+- http://your-freshrss-url/api/fever.php?api&feeds
+- http://your-freshrss-url/api/fever.php?api&groups
+- http://your-freshrss-url/api/fever.php?api&unread_item_ids
+- http://your-freshrss-url/api/fever.php?api&saved_item_ids
+- http://your-freshrss-url/api/fever.php?api&items&max_id=1521049930814379
+- http://your-freshrss-url/api/fever.php?api&mark=item&as=read&id=1511546700294597
+- http://your-freshrss-url/api/fever.php?api&mark=item&as=unread&id=1511546700294597
 
 ## About FreshRSS
 [FreshRSS](https://freshrss.org/) is a great self-hosted RSS Reader written in PHP, which is can also be found here at [GitHub](https://github.com/FreshRSS/FreshRSS).
