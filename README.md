@@ -6,22 +6,19 @@ This FreshRSS extension allows you to access FreshRSS with RSS readers that supp
 
 To use it, upload the ```fever.php``` file to the FreshRSS location `/p/api/fever.php` on your server and enable API access in FreshRSS.
 
-There is a major drawback when using this plugin, which is the username and password combination that you have to use.
-You have to set the API password as md5 sum from the string 'username:password'.
+There is a drawback when using this plugin, which is the username and password combination that you have to use.
+You have to set the API password as lowercase md5 sum from the string 'username:password' (this limitation exists, because the Fever API was designed in a way which is incompatible with the authentication system used by FreshRSS).
 
-So if you use **kevin** as username and **freshrss** as password you have to set your FreshRSS API password to **4a6911fb47a87a77f4de285f4fac856d**.
+So if you use **kevin** as username and **freshrss** as password you have to set your FreshRSS API password to **4a6911fb47a87a77f4de285f4fac856d** (it MUST be lowercased, some tools seem to create it in uppercase which will not work!).
 
-Thats because:
+You can create the hash like this:
 ```bash
 $ md5 -s "kevin:freshrss"
 MD5 ("kevin:freshrss") = 4a6911fb47a87a77f4de285f4fac856d
 ```
+You can also use online tools for calculating ypu API password hash if you don't have a md5 binary available.
 
-In your favorite RSS reader you configure the **fever.php** as endpoint and still use **kevin** as username and **freshrss** as password. 
-
-This limitation exists, because the Fever API was designed in way which is incompatible with the authentication system used by FreshRSS. 
-
-You can use several online tools for calculating ypu API password if you don't have a md5 binary available.
+In your favorite RSS reader you configure **fever.php** as endpoint, **kevin** as username and **freshrss** as password.  
 
 ## Features
 Following features are implemented:
