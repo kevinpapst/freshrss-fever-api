@@ -9,6 +9,7 @@
  * - https://github.com/dasmurphy/tinytinyrss-fever-plugin
  */
 
+//file_put_contents('/tmp/fever.log', json_encode($_REQUEST), FILE_APPEND);
 
 // refresh is not allowed yet, probably we find a way to support it later
 if (isset($_REQUEST["refresh"])) {
@@ -61,7 +62,7 @@ class FeverAPI_EntryDAO extends FreshRSS_EntryDAO
 	 * @return int
 	 */
 	public function countAll() {
-		$sql = 'SELECT COUNT(e.id) AS count FROM `' . $this->prefix . 'entry` e';
+		$sql = 'SELECT COUNT(id) AS count FROM `' . $this->prefix . 'entry`';
 		$stm = $this->bd->prepare($sql);
 		$stm->execute();
 		$res = $stm->fetchAll(PDO::FETCH_COLUMN, 0);
@@ -69,45 +70,29 @@ class FeverAPI_EntryDAO extends FreshRSS_EntryDAO
 	}
 
 	/**
-	 * @return FreshRSS_Entry[]
+	 * @return []
 	 */
 	public function getUnread()
 	{
-        $sql = 'SELECT id, guid, title, author, '
-            . ($this->isCompressed() ? 'UNCOMPRESS(content_bin) AS content' : 'content')
-            . ', link, date, is_read, is_favorite, id_feed, tags '
-            . 'FROM `' . $this->prefix . 'entry` WHERE is_read=0';
+        $sql = 'SELECT id FROM `' . $this->prefix . 'entry` WHERE is_read=0';
 		$stm = $this->bd->prepare($sql);
 		$stm->execute();
-		$result = $stm->fetchAll(PDO::FETCH_ASSOC);
+        $result = $stm->fetchAll(PDO::FETCH_COLUMN);
 
-		$entries = [];
-		foreach ($result as $dao) {
-			$entries[] = self::daoToEntry($dao);
-		}
-
-		return $entries;
+        return $result;
 	}
 
 	/**
-	 * @return FreshRSS_Entry[]
+	 * @return []
 	 */
 	public function getStarred()
 	{
-        $sql = 'SELECT id, guid, title, author, '
-            . ($this->isCompressed() ? 'UNCOMPRESS(content_bin) AS content' : 'content')
-            . ', link, date, is_read, is_favorite, id_feed, tags '
-            . 'FROM `' . $this->prefix . 'entry` WHERE is_favorite=1';
+        $sql = 'SELECT id FROM `' . $this->prefix . 'entry` WHERE is_favorite=1';
 		$stm = $this->bd->prepare($sql);
 		$stm->execute();
-		$result = $stm->fetchAll(PDO::FETCH_ASSOC);
+        $result = $stm->fetchAll(PDO::FETCH_COLUMN);
 
-		$entries = [];
-		foreach ($result as $dao) {
-			$entries[] = self::daoToEntry($dao);
-		}
-
-		return $entries;
+		return $result;
 	}
 
 	/**
@@ -299,29 +284,34 @@ class FeverAPI
             $response_arr["saved_item_ids"] = $this->getSavedItemIds();
         }
 
-		// TODO
-        if (isset($_REQUEST["mark"], $_REQUEST["as"], $_REQUEST["id"])) {
-            if (is_numeric($_REQUEST["id"])) {
-                $before = (isset($_REQUEST["before"])) ? $_REQUEST["before"] : null;
-                if ($before > pow(10, 10)) {
-                    $before = round($before / 1000);
+        if (isset($_REQUEST["mark"], $_REQUEST["as"], $_REQUEST["id"]) && is_numeric($_REQUEST["id"])) {
+            $method_name = "set" . ucfirst($_REQUEST["mark"]) . "As" . ucfirst($_REQUEST["as"]);
+            if (method_exists($this, $method_name)) {
+                $id = intval($_REQUEST["id"]);
+                switch (strtolower($_REQUEST["mark"])) {
+                    case 'item':
+                        $this->{$method_name}($id);
+                        break;
+                    case 'feed':
+                    case 'group':
+                        $before = (isset($_REQUEST["before"])) ? $_REQUEST["before"] : null;
+                        if ($before > pow(10, 10)) {
+                            $before = round($before / 1000);
+                        }
+                        $this->{$method_name}($id, $before);
+                        break;
                 }
-                $method_name = "set" . ucfirst($_REQUEST["mark"]) . "As" . ucfirst($_REQUEST["as"]);
 
-                if (method_exists($this, $method_name)) {
-                    $id = intval($_REQUEST["id"]);
-                    $this->{$method_name}($id, $before);
-                    switch ($_REQUEST["as"]) {
-                        case "read":
-                        case "unread":
-                            $response_arr["unread_item_ids"] = $this->getUnreadItemIds();
-                            break;
+                switch ($_REQUEST["as"]) {
+                    case "read":
+                    case "unread":
+                        $response_arr["unread_item_ids"] = $this->getUnreadItemIds();
+                        break;
 
-                        case 'saved':
-                        case 'unsaved':
-                            $response_arr["saved_item_ids"] = $this->getSavedItemIds();
-                            break;
-                    }
+                    case 'saved':
+                    case 'unsaved':
+                        $response_arr["saved_item_ids"] = $this->getSavedItemIds();
+                        break;
                 }
             }
         }
@@ -553,14 +543,14 @@ class FeverAPI
     }
 
 	/**
-	 * @param FreshRSS_Entry[] $entries
+	 * @param array $entries
 	 * @return string
 	 */
     protected function entriesToIdList($entries = array())
 	{
 		$ids = [];
-		foreach ($entries as $entry) {
-			$ids[] = $entry->id();
+		foreach ($entries as $id) {
+			$ids[] = (int) $id;
 		}
 
 		return implode(',', array_values($ids));
@@ -611,11 +601,11 @@ class FeverAPI
 	}
 
 	/**
-	 * FIXME
+     * TODO check this method for validity - is this required?
 	 * @param $html
 	 * @return string
 	 */
-	protected function rewrite_urls($html)
+	protected function rewriteUrls($html)
 	{
 		libxml_use_internal_errors(true);
 
@@ -663,25 +653,28 @@ class FeverAPI
 	}
 
 	/**
-	 * FIXME
+	 * TODO check this method for validity - is this required?
 	 * @param $str
 	 * @param bool $site_url
 	 * @return string
 	 */
-	protected function my_sanitize($str, $site_url = false)
+	protected function sanitizeContent($str, $site_url = false)
 	{
 		$res = trim($str);
 		if (!$res) return '';
 
-		if (strpos($res, "href=") === false)
-			$res = $this->rewrite_urls($res);
+		if (strpos($res, "href=") === false) {
+            $res = $this->rewriteUrls($res);
+        }
 
 		$charset_hack = '<head>
 			<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 		</head>';
 
 		$res = trim($res);
-		if (!$res) return '';
+		if (!$res) {
+		    return '';
+        }
 
 		libxml_use_internal_errors(true);
 
@@ -804,7 +797,7 @@ class FeverAPI
 				"feed_id" => $entry->feed(false),
 				"title" => $entry->title(),
 				"author" => $entry->author(),
-				"html" => $this->my_sanitize($entry->content()),
+				"html" => $this->sanitizeContent($entry->content()),
 				"url" => $entry->link(),
 				"is_saved" => $entry->isFavorite() ? 1 : 0,
 				"is_read" => $entry->isRead() ? 1 : 0,
@@ -816,58 +809,36 @@ class FeverAPI
 	}
 
     /**
-     * FIXME
+     * @param int $id
+     * @param bool $category
+     * @param int $before
      */
-    protected function setFeed($id, $cat, $before = 0)
+    protected function markAsRead($id, $category, $before = 0)
     {
-        /*
+        // TODO replace by a dynamic fetch for id <= $before timestamp
         // if before is zero, set it to now so feeds all items are read from before this point in time
-        if ($before == 0)
+        if ($before == 0) {
             $before = time();
-
-        if (is_numeric($id)) {
-            // this is a category
-            if ($cat) {
-                // if not special feed
-                if ($id > 0) {
-                    db_query("UPDATE ttrss_user_entries
-						SET unread = false, last_read = NOW() WHERE ref_id IN
-							(SELECT id FROM
-								(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
-									AND owner_uid = '" . db_escape_string($_SESSION["uid"]) . "' AND unread = true AND feed_id IN
-										(SELECT id FROM ttrss_feeds WHERE cat_id IN (" . intval($id) . ")) AND date_entered < '" . date("Y-m-d H:i:s", $before) . "' ) as tmp)");
-
-                } // this is "all" to fever, but internally "all" is -4
-                else if ($id == 0) {
-                    $id = -4;
-                    db_query("UPDATE ttrss_user_entries
-							SET unread = false, last_read = NOW() WHERE ref_id IN
-								(SELECT id FROM
-									(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
-										AND owner_uid = '" . db_escape_string($_SESSION["uid"]) . "' AND unread = true AND date_entered < '" . date("Y-m-d H:i:s", $before) . "' ) as tmp)");
-                }
-            } // not a category
-            else if ($id > 0) {
-                db_query("UPDATE ttrss_user_entries
-					SET unread = false, last_read = NOW() WHERE ref_id IN
-						(SELECT id FROM
-							(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
-								AND owner_uid = '" . db_escape_string($_SESSION["uid"]) . "' AND unread = true AND feed_id = " . intval($id) . " AND date_entered < '" . date("Y-m-d H:i:s", $before) . "' ) as tmp)");
-
-            }
-            ccache_update($id, $_SESSION["uid"], $cat);
         }
-        */
+        $before = PHP_INT_MAX;
+
+        $dao = new FeverAPI_EntryDAO();
+        if ($category) {
+            $dao->markReadCat($id, $before);
+        } else {
+            $dao->markReadFeed($id, $before);
+
+        }
     }
 
     protected function setFeedAsRead($id, $before)
     {
-        $this->setFeed($id, false, $before);
+        $this->markAsRead($id, false, $before);
     }
 
     protected function setGroupAsRead($id, $before)
     {
-        $this->setFeed($id, true, $before);
+        $this->markAsRead($id, true, $before);
     }
 }
 
