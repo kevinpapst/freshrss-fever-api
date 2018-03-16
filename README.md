@@ -6,6 +6,17 @@ This FreshRSS extension allows you to access FreshRSS with RSS readers that supp
 
 To use it, upload the ```fever.php``` file to the FreshRSS location `/p/api/fever.php` on your server and enable API access in FreshRSS.
 
+### RSS clients
+
+There are many RSS clients existing, and they all seem to understand the Fever API a bit differently. 
+If your favorite client doesn't work properly with this API, create an issue and I will have a look. 
+But I can ONLY do that for free clients, as I am not willing to buy any RSS client. If you want to gift them to me, let me know and sent you my Google Play / App Store account ... but be aware that I can't promise anything, I don't know if I am able to fix their broken Fever API implementation. 
+
+Special client implementation:
+- The Press Android client needs (tested with 1.5.4) needs the additional file `fever-press.php` (use that file as endpoint in the Fever account setting)  
+
+### Authentication
+
 There is a drawback when using this plugin, which is the username and password combination that you have to use.
 You have to set the API password as lowercase md5 sum from the string 'username:password' (this limitation exists, because the Fever API was designed in a way which is incompatible with the authentication system used by FreshRSS).
 
@@ -38,14 +49,8 @@ Following features are implemented:
 - setting read marker for item(s)
 - setting starred marker for item(s)
 - **hot** is not supported as there is nothing in FreshRSS that is similar
-
-## Roadmap
-
-Support will follow soon:
-
 - setting read marker for feed
 - setting read marker for category
-- improve speed: currently there is some overhead while fetching entries, feeds and categories which can be eliminated
 
 ## Testing and error search
 If this API doesn't work as expected in your RSS reader, please test it manually with a tool like [Postman](https://www.getpostman.com/). 
@@ -75,9 +80,22 @@ Some basic calls are:
 - http://your-freshrss-url/api/fever.php?api&groups
 - http://your-freshrss-url/api/fever.php?api&unread_item_ids
 - http://your-freshrss-url/api/fever.php?api&saved_item_ids
-- http://your-freshrss-url/api/fever.php?api&items&max_id=1521049930814379
-- http://your-freshrss-url/api/fever.php?api&mark=item&as=read&id=1511546700294597
-- http://your-freshrss-url/api/fever.php?api&mark=item&as=unread&id=1511546700294597
+- http://your-freshrss-url/api/fever.php?api&items&since_id=some_id
+- http://your-freshrss-url/api/fever.php?api&items&max_id=some_id
+- http://your-freshrss-url/api/fever.php?api&mark=item&as=read&id=some_id
+- http://your-freshrss-url/api/fever.php?api&mark=item&as=unread&id=some_id
+
+Replace `some_id` with a real ID from your `freshrss_username_entry` database.
+
+### Debugging
+
+If nothing helps and your clients still misbehaves, add these lines to the start of `fever.api``
+
+```php
+file_put_contents(__DIR__ . '/fever.log', $_SERVER['HTTP_USER_AGENT'] . ': ' . json_encode($_REQUEST) . PHP_EOL, FILE_APPEND);
+```
+
+Then use your RSS client to query the API and afterwards check the file `fever.log`.
 
 ## About FreshRSS
 [FreshRSS](https://freshrss.org/) is a great self-hosted RSS Reader written in PHP, which is can also be found here at [GitHub](https://github.com/FreshRSS/FreshRSS).

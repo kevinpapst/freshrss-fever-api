@@ -4,12 +4,12 @@
  * Version 0.1
  * Author: Kevin Papst / https://github.com/kevinpapst
  *
- * This is highly inspired by:
- * - TinyTinyRSS Fever API plugin
- * - https://github.com/dasmurphy/tinytinyrss-fever-plugin
+ * Inspired by:
+ * TinyTinyRSS Fever API plugin @dasmurphy
+ * See https://github.com/dasmurphy/tinytinyrss-fever-plugin
  */
 
-//file_put_contents('/tmp/fever.log', json_encode($_REQUEST), FILE_APPEND);
+file_put_contents(__DIR__ . '/fever.log', $_SERVER['HTTP_USER_AGENT'] . ': ' . json_encode($_REQUEST) . PHP_EOL, FILE_APPEND);
 
 // refresh is not allowed yet, probably we find a way to support it later
 if (isset($_REQUEST["refresh"])) {
@@ -33,6 +33,13 @@ if (!FreshRSS_Context::$system_conf->api_enabled) {
 
 Minz_Session::init('FreshRSS');
 // ================================================================================================
+
+// this allows to overwrite the FeverAPI for special clients
+if (!function_exists('createFeverApiInstance')) {
+    function createFeverApiInstance() {
+        return new FeverAPI();
+    }
+}
 
 /**
  * Class FeverAPI_FeedDAO for more feed functions than FreshRSS offers.
@@ -59,14 +66,25 @@ class FeverAPI_CategoryDAO extends FreshRSS_CategoryDAO
 class FeverAPI_EntryDAO extends FreshRSS_EntryDAO
 {
 	/**
-	 * @return int
+	 * @return []
 	 */
-	public function countAll() {
-		$sql = 'SELECT COUNT(id) AS count FROM `' . $this->prefix . 'entry`';
+	public function countFever()
+    {
+	    $values = [
+	        'total' => 0,
+	        'min' => 0,
+            'max' => 0,
+        ];
+		$sql = 'SELECT COUNT(id) as `total`, MIN(id) as `min`, MAX(id) as `max` FROM `' . $this->prefix . 'entry`';
 		$stm = $this->bd->prepare($sql);
 		$stm->execute();
-		$res = $stm->fetchAll(PDO::FETCH_COLUMN, 0);
-		return $res[0];
+		$result = $stm->fetchAll(PDO::FETCH_ASSOC);
+
+		if (!empty($result[0])) {
+		    $values = $result[0];
+        }
+
+		return $values;
 	}
 
 	/**
@@ -119,6 +137,8 @@ class FeverAPI_EntryDAO extends FreshRSS_EntryDAO
 	{
 		$values = [];
 		$order = '';
+		$feverCounts = $this->countFever();
+		$limit = 50;
 
 		$sql = 'SELECT id, guid, title, author, '
 			. ($this->isCompressed() ? 'UNCOMPRESS(content_bin) AS content' : 'content')
@@ -133,6 +153,14 @@ class FeverAPI_EntryDAO extends FreshRSS_EntryDAO
 			$values[':id'] = $max_id;
 			$order = ' ORDER BY id DESC';
 		} else {
+		    // hack for stupid rss clients that do not stick to the API definition (Press on Android for example starts requests from 0 up and doesn't stop)
+            // the API says: Use the since_id argument with the highest id of locally cached items to request 50 additional items. Repeat until the items array in the response is empty.
+            // problem is: FreshRSS calculates its IDs completely different than Fever did, in FreshRSS my IDs started with 1194539700655245 and therefor the clients receive the same 50 results for every call
+            /*
+		    if ($feverCounts['min'] > ($since_id + $limit * 10)) {
+                $sql .= ' AND 1=2 AND ';
+            }
+            */
 			$sql .= ' id > :id';
 			$values[':id'] = $since_id;
 			$order = ' ORDER BY id ASC';
@@ -144,7 +172,7 @@ class FeverAPI_EntryDAO extends FreshRSS_EntryDAO
 		}
 
 		$sql .= $order;
-		$sql .= ' LIMIT 50';
+		$sql .= $this->getSelectLimit($max_id, $since_id);
 
 		$stm = $this->bd->prepare($sql);
 		$stm->execute($values);
@@ -158,6 +186,17 @@ class FeverAPI_EntryDAO extends FreshRSS_EntryDAO
 		return $entries;
 	}
 
+    /**
+     * Must be overwritten by incompatible clients.
+     *
+     * @param $max_id
+     * @param $since_id
+     * @return string
+     */
+	protected function getSelectLimit($max_id, $since_id)
+    {
+        return ' LIMIT 50';
+    }
 }
 
 /**
@@ -240,6 +279,30 @@ class FeverAPI
 		}
 
         return false;
+    }
+
+    /**
+     * @return FeverAPI_FeedDAO
+     */
+    protected function getDaoForFeeds()
+    {
+        return new FeverAPI_FeedDAO();
+    }
+
+    /**
+     * @return FeverAPI_CategoryDAO
+     */
+    protected function getDaoForCategories()
+    {
+        return new FeverAPI_CategoryDAO();
+    }
+
+    /**
+     * @return FeverAPI_EntryDAO
+     */
+    protected function getDaoForEntries()
+    {
+        return new FeverAPI_EntryDAO();
     }
 
     /**
@@ -403,7 +466,7 @@ class FeverAPI
     {
 		$lastUpdate = 0;
 
- 		$dao = new FeverAPI_FeedDAO();
+ 		$dao = $this->getDaoForFeeds();
 		$feed = $dao->getLastUpdatedFeed();
 
 		if (!empty($feed)) {
@@ -420,7 +483,7 @@ class FeverAPI
     {
         $feeds = [];
 
-		$dao = new FeverAPI_FeedDAO();
+        $dao = $this->getDaoForFeeds();
 		$myFeeds = $dao->listFeeds();
 
 		/** @var FreshRSS_Feed $feed */
@@ -446,7 +509,7 @@ class FeverAPI
 	{
 		$groups = array();
 
-		$dao = new FeverAPI_CategoryDAO();
+		$dao = $this->getDaoForCategories();
 		$categories = $dao->listCategories(false, false);
 
 		/** @var FreshRSS_Category $category */
@@ -467,7 +530,7 @@ class FeverAPI
     {
         $favicons = array();
 
-		$dao = new FeverAPI_FeedDAO();
+        $dao = $this->getDaoForFeeds();
 		$myFeeds = $dao->listFeeds();
 
 		$salt = FreshRSS_Context::$system_conf->salt;
@@ -497,11 +560,11 @@ class FeverAPI
 	{
 		$total_items = 0;
 
-		$dao = new FeverAPI_EntryDAO();
-		$result = $dao->countAll();
+		$dao = $this->getDaoForEntries();
+		$result = $dao->countFever();
 
 		if (!empty($result)) {
-			$total_items = $result;
+			$total_items = $result['total'];
 		}
 
 		return $total_items;
@@ -515,7 +578,7 @@ class FeverAPI
 		$groups = array();
 		$ids = [];
 
-		$dao = new FeverAPI_FeedDAO();
+        $dao = $this->getDaoForFeeds();
 		$myFeeds = $dao->listFeeds();
 
 		/** @var FreshRSS_Feed $feed */
@@ -561,7 +624,7 @@ class FeverAPI
      */
     protected function getUnreadItemIds()
     {
-		$dao = new FeverAPI_EntryDAO();
+        $dao = $this->getDaoForEntries();
 		$entries = $dao->getUnread();
 		return $this->entriesToIdList($entries);
     }
@@ -571,32 +634,32 @@ class FeverAPI
      */
     protected function getSavedItemIds()
     {
-		$dao = new FeverAPI_EntryDAO();
+        $dao = $this->getDaoForEntries();
 		$entries = $dao->getStarred();
 		return $this->entriesToIdList($entries);
     }
 
 	protected function setItemAsRead($id)
 	{
-		$dao = new FeverAPI_EntryDAO();
+        $dao = $this->getDaoForEntries();
 		$dao->markRead($id, true);
 	}
 
 	protected function setItemAsUnread($id)
 	{
-		$dao = new FeverAPI_EntryDAO();
+        $dao = $this->getDaoForEntries();
 		$dao->markRead($id, false);
 	}
 
 	protected function setItemAsSaved($id)
 	{
-		$dao = new FeverAPI_EntryDAO();
+        $dao = $this->getDaoForEntries();
 		$dao->markFavorite($id, true);
 	}
 
 	protected function setItemAsUnsaved($id)
 	{
-		$dao = new FeverAPI_EntryDAO();
+        $dao = $this->getDaoForEntries();
 		$dao->markFavorite($id, false);
 	}
 
@@ -750,7 +813,7 @@ class FeverAPI
 				$feed_ids = explode(",", $_REQUEST["feed_ids"]);
 			}
 
-			$dao = new FeverAPI_CategoryDAO();
+            $dao = $this->getDaoForCategories();
 			if (isset($_REQUEST["group_ids"])) {
 				$group_ids = explode(",", $_REQUEST["group_ids"]);
 				foreach ($group_ids as $id) {
@@ -783,12 +846,12 @@ class FeverAPI
 		else
 		{
 			// use the since_id argument to request the next $item_limit items
-			$since_id = isset($_REQUEST["since_id"]) && is_numeric($_REQUEST["since_id"]) ? intval($_GET["since_id"]) : 0;
+			$since_id = isset($_REQUEST["since_id"]) && is_numeric($_REQUEST["since_id"]) ? intval($_REQUEST["since_id"]) : 0;
 		}
 
 		$items = [];
 
-		$dao = new FeverAPI_EntryDAO();
+        $dao = $this->getDaoForEntries();
 		$entries = $dao->findEntries($feed_ids, $entry_ids, $max_id, $since_id);
 
 		foreach($entries as $entry) {
@@ -822,7 +885,7 @@ class FeverAPI
         }
         $before = PHP_INT_MAX;
 
-        $dao = new FeverAPI_EntryDAO();
+        $dao = $this->getDaoForEntries();
         if ($category) {
             $dao->markReadCat($id, $before);
         } else {
@@ -844,7 +907,7 @@ class FeverAPI
 
 // ================================================================================================
 // Start the Fever API handling
-$handler = new FeverAPI();
+$handler = createFeverApiInstance();
 
 if ($handler->isXmlRequested()) {
 	header("Content-Type: text/xml");
